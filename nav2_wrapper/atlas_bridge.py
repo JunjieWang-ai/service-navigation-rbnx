@@ -643,53 +643,110 @@ def _spawn_collision_monitor(params_file: str, use_sim_time: str) -> None:
 def _materialize_guarded_launch(
     *, controller_velocity_output_topic: str | None = None, collision_monitor: bool = False
 ) -> str:
-    """Patch the distro launch so every Nav2 velocity crosses our final guard."""
+    """Patch the distro launch so every Nav2 velocity crosses our final guard.
+
+    Anchors are block-scoped and dual-generation: Humble's launch file and
+    Jazzy's (nav2 1.3.x restructured the file — the velocity_smoother sits
+    inline, remaps end with a comma instead of a closing paren, and the
+    smoother's remap is split across two lines without a cmd_vel_smoothed
+    pair). Each patch targets the node's own block, so the shared
+    'remappings + [(cmd_vel, cmd_vel_nav)]' text in unrelated nodes cannot
+    satisfy an anchor by accident. Every replacement is verified on both
+    distros' navigation_launch.py across all four flag combinations.
+    """
+    import re
+
     from ament_index_python.packages import get_package_share_directory  # type: ignore
 
     source = Path(get_package_share_directory("nav2_bringup")) / "launch" / "navigation_launch.py"
     text = source.read_text(encoding="utf-8")
+    target_topic = (
+        _COLLISION_MONITOR_INPUT if collision_monitor else "cmd_vel_guard_input"
+    )
+
+    def _patch_blocks(
+        text: str, start_marker: str, end_marker: str, anchors: list[tuple], times: int, label: str
+    ) -> str:
+        """Replace one anchor per block; anchors are (humble, jazzy, h_repl, j_repl)."""
+        search_from = 0
+        for _ in range(times):
+            block_start = text.index(start_marker, search_from)
+            block_end = text.index(end_marker, block_start)
+            block = text[block_start:block_end]
+            replaced = None
+            for h_anchor, j_anchor, h_repl, j_repl in anchors:
+                if h_anchor is not None and block.count(h_anchor) == 1:
+                    replaced = block.replace(h_anchor, h_repl)
+                    break
+                if j_anchor is not None and block.count(j_anchor) == 1:
+                    replaced = block.replace(j_anchor, j_repl)
+                    break
+            if replaced is None:
+                raise RuntimeError(f"unsupported nav2 {label} launch layout")
+            text = text[:block_start] + replaced + text[block_end:]
+            search_from = block_end
+        return text
+
     if controller_velocity_output_topic is not None:
-        old_controller = (
-            "remappings=remappings + [('cmd_vel', 'cmd_vel_nav')])"
+        topic = controller_velocity_output_topic
+        text = _patch_blocks(
+            text,
+            "package='nav2_controller'",
+            "package='nav2_planner'",
+            [(
+                "remappings=remappings + [('cmd_vel', 'cmd_vel_nav')])",
+                "remappings + [('cmd_vel', 'cmd_vel_nav')],",
+                f"remappings=remappings + [('cmd_vel', '{topic}')])",
+                f"remappings + [('cmd_vel', '{topic}')],",
+            )],
+            times=2,
+            label="controller",
         )
-        if text.count(old_controller) != 2:
-            raise RuntimeError("unsupported nav2 controller launch layout")
-        text = text.replace(
-            old_controller,
-            "remappings=remappings + "
-            f"[('cmd_vel', '{controller_velocity_output_topic}')])",
-        )
-    old_behavior = "remappings=remappings)"
-    behavior_marker = "package='nav2_behaviors'"
+
+    text = _patch_blocks(
+        text,
+        "package='nav2_behaviors'",
+        "package='nav2_bt_navigator'",
+        [(
+            "remappings=remappings)",
+            "remappings + [('cmd_vel', 'cmd_vel_nav')],",
+            f"remappings=remappings + [('cmd_vel', '{target_topic}')])",
+            f"remappings + [('cmd_vel', '{target_topic}')],",
+        )],
+        times=2,
+        label="behavior_server",
+    )
+
+    h_smoother = "[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')])"
+    j_smoother_re = re.compile(
+        r"remappings=remappings\s*\n\s*\+ \[\('cmd_vel', 'cmd_vel_nav'\)\],"
+    )
     search_from = 0
     for _ in range(2):
-        behavior_start = text.index(behavior_marker, search_from)
-        behavior_end = text.index("package='nav2_bt_navigator'", behavior_start)
-        behavior = text[behavior_start:behavior_end]
-        if behavior.count(old_behavior) != 1:
-            raise RuntimeError("unsupported nav2 behavior_server launch layout")
-        if controller_velocity_output_topic is None:
-            behavior_remap = (
-                "remappings=remappings + "
-                "[('cmd_vel', 'cmd_vel_guard_input')])"
+        block_start = text.index("package='nav2_velocity_smoother'", search_from)
+        if h_smoother in text[block_start:block_start + 1200]:
+            rel = text.index(h_smoother, block_start)
+            text = (
+                text[:rel]
+                + h_smoother.replace(
+                    "('cmd_vel_smoothed', 'cmd_vel')",
+                    f"('cmd_vel_smoothed', '{target_topic}')",
+                )
+                + text[rel + len(h_smoother):]
             )
+            search_from = rel + 1
         else:
-            behavior_remap = (
-                "remappings=remappings + "
-                f"[('cmd_vel', '{controller_velocity_output_topic}')])"
+            match = j_smoother_re.search(text, block_start)
+            if match is None:
+                raise RuntimeError("unsupported nav2 velocity_smoother launch layout")
+            text = (
+                text[:match.start()]
+                + "remappings=remappings + [('cmd_vel', 'cmd_vel_nav'), "
+                + f"('cmd_vel_smoothed', '{target_topic}')],"
+                + text[match.end():]
             )
-        behavior = behavior.replace(
-            old_behavior,
-            behavior_remap,
-        )
-        text = text[:behavior_start] + behavior + text[behavior_end:]
-        search_from = behavior_end
-    old_smoother = "[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel')])"
-    smoothed = _COLLISION_MONITOR_INPUT if collision_monitor else "cmd_vel_guard_input"
-    new_smoother = f"[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', '{smoothed}')])"
-    if text.count(old_smoother) != 2:
-        raise RuntimeError("unsupported nav2 velocity_smoother launch layout")
-    text = text.replace(old_smoother, new_smoother)
+            search_from = match.end() + 1
+
     target = _pkg_root / "rbnx-build" / "runtime" / "guarded_navigation_launch.py"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
