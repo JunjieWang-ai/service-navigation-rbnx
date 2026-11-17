@@ -660,9 +660,7 @@ def _materialize_guarded_launch(
 
     source = Path(get_package_share_directory("nav2_bringup")) / "launch" / "navigation_launch.py"
     text = source.read_text(encoding="utf-8")
-    target_topic = (
-        _COLLISION_MONITOR_INPUT if collision_monitor else "cmd_vel_guard_input"
-    )
+    smoothed = _COLLISION_MONITOR_INPUT if collision_monitor else "cmd_vel_guard_input"
 
     def _patch_blocks(
         text: str, start_marker: str, end_marker: str, anchors: list[tuple], times: int, label: str
@@ -689,13 +687,17 @@ def _materialize_guarded_launch(
 
     if controller_velocity_output_topic is not None:
         topic = controller_velocity_output_topic
+        # The Humble-generation controller anchor, and its Jazzy counterpart
+        # (nav2 1.3.x terminates the remap with a comma instead of a paren).
+        old_controller = "remappings=remappings + [('cmd_vel', 'cmd_vel_nav')])"
+        old_controller_jazzy = "remappings + [('cmd_vel', 'cmd_vel_nav')],"
         text = _patch_blocks(
             text,
             "package='nav2_controller'",
             "package='nav2_planner'",
             [(
-                "remappings=remappings + [('cmd_vel', 'cmd_vel_nav')])",
-                "remappings + [('cmd_vel', 'cmd_vel_nav')],",
+                old_controller,
+                old_controller_jazzy,
                 f"remappings=remappings + [('cmd_vel', '{topic}')])",
                 f"remappings + [('cmd_vel', '{topic}')],",
             )],
@@ -703,16 +705,25 @@ def _materialize_guarded_launch(
             label="controller",
         )
 
+    if controller_velocity_output_topic is None:
+        behavior_anchors = [(
+            "remappings=remappings)",
+            "remappings + [('cmd_vel', 'cmd_vel_nav')],",
+            "remappings=remappings + [('cmd_vel', 'cmd_vel_guard_input')])",
+            "remappings + [('cmd_vel', 'cmd_vel_guard_input')],",
+        )]
+    else:
+        behavior_anchors = [(
+            "remappings=remappings)",
+            "remappings + [('cmd_vel', 'cmd_vel_nav')],",
+            f"remappings=remappings + [('cmd_vel', '{controller_velocity_output_topic}')])",
+            f"remappings + [('cmd_vel', '{controller_velocity_output_topic}')],",
+        )]
     text = _patch_blocks(
         text,
         "package='nav2_behaviors'",
         "package='nav2_bt_navigator'",
-        [(
-            "remappings=remappings)",
-            "remappings + [('cmd_vel', 'cmd_vel_nav')],",
-            f"remappings=remappings + [('cmd_vel', '{target_topic}')])",
-            f"remappings + [('cmd_vel', '{target_topic}')],",
-        )],
+        behavior_anchors,
         times=2,
         label="behavior_server",
     )
@@ -730,7 +741,7 @@ def _materialize_guarded_launch(
                 text[:rel]
                 + h_smoother.replace(
                     "('cmd_vel_smoothed', 'cmd_vel')",
-                    f"('cmd_vel_smoothed', '{target_topic}')",
+                    f"('cmd_vel_smoothed', '{smoothed}')",
                 )
                 + text[rel + len(h_smoother):]
             )
@@ -742,7 +753,7 @@ def _materialize_guarded_launch(
             text = (
                 text[:match.start()]
                 + "remappings=remappings + [('cmd_vel', 'cmd_vel_nav'), "
-                + f"('cmd_vel_smoothed', '{target_topic}')],"
+                + f"('cmd_vel_smoothed', '{smoothed}')],"
                 + text[match.end():]
             )
             search_from = match.end() + 1
