@@ -758,6 +758,18 @@ def _materialize_guarded_launch(
             )
             search_from = match.end() + 1
 
+    # Jazzy-only: strip the docking server. Robonix deployments configure no
+    # charging dock, and opennav_docking aborts the whole lifecycle bringup
+    # ("Charging dock plugins not given!"), which would keep navigate_to_pose
+    # from ever activating. Humble's launch file has no docking node, so the
+    # strip is a no-op there.
+    if "opennav_docking" in text:
+        text = text.replace("        'docking_server',\n", "")
+        dock_start = text.index("package='opennav_docking'")
+        node_start = text.rindex("Node(", 0, dock_start)
+        block_end = text.index("),", dock_start)
+        text = text[:node_start] + text[block_end + len("),") + 1:]
+
     target = _pkg_root / "rbnx-build" / "runtime" / "guarded_navigation_launch.py"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
