@@ -221,7 +221,10 @@ class RuntimeIntegrationTest(unittest.TestCase):
     def test_docker_runtime_supports_interface_bound_cyclonedds(self):
         dockerfile = (ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
         start = (ROOT / "scripts" / "start.sh").read_text(encoding="utf-8")
-        self.assertIn("ros-humble-rmw-cyclonedds-cpp", dockerfile)
+        self.assertIn("ros-jazzy-rmw-cyclonedds-cpp", dockerfile)
+        # The closure runs rmw_zenoh_cpp stack-wide (boot.sh forces it); a
+        # dropped zenoh line would break discovery while cyclonedds stays green.
+        self.assertIn("ros-jazzy-rmw-zenoh-cpp", dockerfile)
         self.assertIn('-e CYCLONEDDS_URI="${CYCLONEDDS_URI:-}"', start)
         self.assertIn(
             '-e ROBONIX_PROVIDER_BIND_HOST="${ROBONIX_PROVIDER_BIND_HOST:-0.0.0.0}"',

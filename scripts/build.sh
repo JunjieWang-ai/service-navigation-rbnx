@@ -8,7 +8,7 @@
 #   jetson-docker  arm64 Jetson + docker (same Dockerfile; ros:humble base
 #                  is multi-arch, so it builds arm64 on a Jetson)
 #   jetson-native  arm64 Jetson + host ROS2 — no docker; verify the host
-#                  has ros-humble-nav2-bringup.
+#                  has ros-jazzy-nav2-bringup.
 set -euo pipefail
 PKG="${RBNX_PACKAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # shellcheck disable=SC1091
@@ -17,8 +17,8 @@ cd "$PKG"
 CLEAN="${RBNX_BUILD_CLEAN:-}"
 IMG="${ROBONIX_NAV2_IMAGE:-robonix-nav2}"
 TARGET="${RBNX_BUILD_TARGET:-x86-docker}"
-ROS_BASE_IMAGE="${ROBONIX_NAV2_ROS_BASE_IMAGE:-robonix-ros:humble-ros-base}"
-UPSTREAM_ROS_BASE_IMAGE="ros:humble-ros-base"
+ROS_BASE_IMAGE="${ROBONIX_NAV2_ROS_BASE_IMAGE:-robonix-ros:jazzy-ros-base}"
+UPSTREAM_ROS_BASE_IMAGE="ros:jazzy-ros-base"
 
 if [[ "$CLEAN" == "1" ]]; then
     echo "[nav2/build] clean: removing rbnx-build/"
@@ -54,7 +54,7 @@ case "$TARGET" in
     jetson-native)
         echo "[nav2/build] native target — verifying host ROS2 + nav2"
         if ! command -v ros2 >/dev/null 2>&1; then
-            echo "[nav2/build] ERROR: ros2 not on PATH — source /opt/ros/humble/setup.bash" >&2
+            echo "[nav2/build] ERROR: ros2 not on PATH — source /opt/ros/jazzy/setup.bash" >&2
             exit 1
         fi
         # Avoid `ros2 pkg list | grep -q` under pipefail: grep exits as soon as
@@ -62,17 +62,17 @@ case "$TARGET" in
         # incorrectly reported as a failed pipeline.
         if ! ros2 pkg prefix nav2_bringup >/dev/null 2>&1; then
             echo "[nav2/build] ERROR: nav2_bringup not installed. On the host run:" >&2
-            echo "[nav2/build]   sudo apt install ros-humble-nav2-bringup ros-humble-navigation2" >&2
+            echo "[nav2/build]   sudo apt install ros-jazzy-nav2-bringup ros-jazzy-navigation2" >&2
             exit 1
         fi
         if ! ros2 pkg prefix pointcloud_to_laserscan >/dev/null 2>&1; then
             echo "[nav2/build] ERROR: pointcloud_to_laserscan not installed. On the host run:" >&2
-            echo "[nav2/build]   sudo apt install ros-humble-pointcloud-to-laserscan" >&2
+            echo "[nav2/build]   sudo apt install ros-jazzy-pointcloud-to-laserscan" >&2
             exit 1
         fi
         if ! ros2 pkg prefix rtabmap_util >/dev/null 2>&1; then
             echo "[nav2/build] ERROR: rtabmap_util not installed. On the host run:" >&2
-            echo "[nav2/build]   sudo apt install ros-humble-rtabmap-util" >&2
+            echo "[nav2/build]   sudo apt install ros-jazzy-rtabmap-util" >&2
             exit 1
         fi
         TERMINAL_BUILD="$PKG/rbnx-build/terminal_controller"

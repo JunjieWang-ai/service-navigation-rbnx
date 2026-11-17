@@ -9,7 +9,7 @@ set -euo pipefail
 PKG="${RBNX_PACKAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 cd "$PKG"
 
-ROS_DISTRO="${ROS_DISTRO:-humble}"
+ROS_DISTRO="${ROS_DISTRO:-jazzy}"
 if [[ ! -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]]; then
     echo "[nav2-native] ERR: ROS 2 not found at /opt/ros/${ROS_DISTRO}" >&2
     echo "[nav2-native]      set ROBONIX_NAV2_FORCE=docker to use the container path" >&2
@@ -22,13 +22,13 @@ if [[ -f "$PKG/rbnx-build/terminal_controller/install/setup.bash" ]]; then
 fi
 if ! ros2 pkg prefix nav2_bringup >/dev/null 2>&1; then
     echo "[nav2-native] ERR: nav2_bringup not installed on the host." >&2
-    echo "[nav2-native]      sudo apt install ros-humble-nav2-bringup ros-humble-navigation2" >&2
+    echo "[nav2-native]      sudo apt install ros-jazzy-nav2-bringup ros-jazzy-navigation2" >&2
     echo "[nav2-native]      (or ROBONIX_NAV2_FORCE=docker)" >&2
     exit 2
 fi
 if ! ros2 pkg prefix rtabmap_util >/dev/null 2>&1; then
     echo "[nav2-native] ERR: rtabmap_util not installed on the host." >&2
-    echo "[nav2-native]      sudo apt install ros-humble-rtabmap-util" >&2
+    echo "[nav2-native]      sudo apt install ros-jazzy-rtabmap-util" >&2
     exit 2
 fi
 

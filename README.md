@@ -130,7 +130,7 @@ failure returns `error` and tears down every child process.
 Navigation generates only its Atlas MCP bindings on every deployment target.
 It deliberately does not generate, build, or source a Robonix ROS 2 IDL
 overlay: the provider talks to Nav2 through the ROS 2 interfaces supplied by
-the selected Humble installation, while its own public capability transport is
+the selected ROS 2 installation, while its own public capability transport is
 gRPC/MCP. Jetson native builds source only the system ROS 2 installation and
 the locally built terminal-controller plugin overlay.
 
@@ -145,6 +145,6 @@ python3 -m unittest -v \
   test_velocity_limit.py
 ```
 
-Jetson native builds require ROS 2 Humble and Nav2 packages compatible with the
+Jetson native builds require ROS 2 (Humble for the JetPack image) and Nav2 packages compatible with the
 host JetPack image. Docker manifests remain available for simulator and CI
 deployments.

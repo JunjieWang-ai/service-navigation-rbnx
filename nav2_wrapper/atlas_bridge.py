@@ -365,7 +365,7 @@ def _prepare_scan(cfg: dict, bindings: list[str]) -> list[str]:
             )
         except FileNotFoundError as exc:
             raise RuntimeError(
-                "scan_deskewing requires ros-humble-rtabmap-util"
+                "scan_deskewing requires ros-jazzy-rtabmap-util"
             ) from exc
         threading.Thread(
             target=_pump_output,
@@ -400,7 +400,7 @@ def _prepare_scan(cfg: dict, bindings: list[str]) -> list[str]:
         _kill_scan_projector()
         raise RuntimeError(
             "scan_projection requires "
-            "ros-humble-pointcloud-to-laserscan"
+            "ros-jazzy-pointcloud-to-laserscan"
         ) from exc
     threading.Thread(
         target=_pump_output, args=(_scan_projector_proc.stdout, "pointcloud_to_laserscan"),

@@ -10,7 +10,7 @@
 #
 # --network host + --ipc=host at runtime so DDS/SHM line up with whatever
 # sim/robot container publishes /map, /odom, /scan and consumes /cmd_vel.
-ARG ROS_BASE_IMAGE=robonix-ros:humble-ros-base
+ARG ROS_BASE_IMAGE=robonix-ros:jazzy-ros-base
 FROM ${ROS_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -32,6 +32,7 @@ RUN set -eux; \
             /etc/apt/sources.list; \
     fi
 ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Nav2 stack + tf + the pointcloud→laserscan adapter (for 3D-lidar-only
 # robots whose costmap wants a LaserScan) + the voxel layer and numpy that
@@ -40,33 +41,17 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         python3-pip \
         python3-yaml \
-        ros-humble-navigation2 \
-        ros-humble-nav2-bringup \
-        ros-humble-tf2-ros \
-        ros-humble-pointcloud-to-laserscan \
-        ros-humble-spatio-temporal-voxel-layer \
+        ros-jazzy-navigation2 \
+        ros-jazzy-nav2-bringup \
+        ros-jazzy-tf2-ros \
+        ros-jazzy-pointcloud-to-laserscan \
+        ros-jazzy-spatio-temporal-voxel-layer \
         python3-numpy \
-        ros-humble-rtabmap-util \
-        ros-humble-rmw-cyclonedds-cpp \
-        ros-humble-rmw-zenoh-cpp \
+        ros-jazzy-rtabmap-util \
+        ros-jazzy-rmw-cyclonedds-cpp \
+        ros-jazzy-rmw-zenoh-cpp \
  && rm -rf /var/lib/apt/lists/*
 
-# tf2 0.25.23, from the humble sync of 2026-09-07, can deadlock a node's TF
-# buffer: waitForTransform and the listener's testTransformableRequests take
-# the same two locks in opposite order (ros2/geometry2#982). The buffer then
-# stops taking transforms, so costmaps and SLAM work from a frozen robot pose.
-# 0.25.24 fixes it and so far only ros2-testing carries it. Remove this step
-# once the main repository has 0.25.24.
-RUN set -eux; \
-    sed -e 's|^URIs: .*|URIs: http://packages.ros.org/ros2-testing/ubuntu|' \
-        -e 's|^Types: .*|Types: deb|' \
-        /etc/apt/sources.list.d/ros2.sources > /etc/apt/sources.list.d/ros2-testing.sources; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends --only-upgrade \
-        $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'ros-humble-tf2*' | awk '$1 == "ii" {print $2}'); \
-    rm /etc/apt/sources.list.d/ros2-testing.sources; \
-    rm -rf /var/lib/apt/lists/*; \
-    dpkg --compare-versions "$(dpkg-query -W -f='${Version}' ros-humble-tf2-ros)" ge 0.25.24
 
 # The pip shipped with the ROS Humble base image (22.x) crashes while resolving
 # the set below: pip/_internal/resolution/resolvelib/resolver.py raises
