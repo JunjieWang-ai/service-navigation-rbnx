@@ -53,17 +53,19 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 
-# The pip shipped with the ROS Humble base image (22.x) crashes while resolving
-# the set below: pip/_internal/resolution/resolvelib/resolver.py raises
-# AssertionError in get_topological_weights. That is a resolver bug rather than
-# a conflict between these requirements, and it is fixed in newer pip, so
-# upgrade before resolving anything.
-RUN pip install --no-cache-dir --upgrade 'pip>=24'
+# The pip-22 self-upgrade below was removed for noble: `pip install
+# --upgrade 'pip>=24'` force-upgrades past the Debian-owned apt pip 24.0
+# and fails with "Cannot uninstall pip 24.0, RECORD file not found". noble
+# ships pip 24.0, whose resolver is past the get_topological_weights
+# AssertionError that motivated this on Humble (jammy pip 22.x).
 
 # grpcio-tools 1.83+ needs setuptools>=77, while ROS colcon-core requires <80.
 # MCP 2.0 removed mcp.server.fastmcp, which the mounted robonix-api imports.
 # Keep the known-compatible MCP 1.x baseline.
-RUN pip install --no-cache-dir \
+# --ignore-installed setuptools: noble's apt setuptools (68.1.3) is
+# Debian-owned with no RECORD; the pip setuptools 79.x lands in /usr/local
+# and shadows it (79 satisfies both grpcio-tools' >=77 and colcon's <80).
+RUN pip install --no-cache-dir --ignore-installed setuptools \
         'setuptools>=77,<80' \
         grpcio>=1.60.0 \
         grpcio-tools>=1.60.0 \
